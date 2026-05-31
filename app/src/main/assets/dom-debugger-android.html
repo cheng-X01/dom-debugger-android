@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DOM Debugger Android</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg-primary: #1e1e1e;
+            --bg-secondary: #252526;
+            --bg-tertiary: #2d2d30;
+            --text-primary: #cccccc;
+            --text-secondary: #858585;
+            --accent: #007acc;
+            --accent-hover: #005a9e;
+            --border: #3e3e42;
+            --success: #4ec9b0;
+            --warning: #ce9178;
+            --error: #f44747;
+            --tag: #569cd6;
+            --attr: #9cdcfe;
+            --value: #ce9178;
+        }
+        body {
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            height: 100vh;
+            overflow: hidden;
+        }
+        .header {
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            height: 40px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            padding: 0 12px;
+            z-index: 1000;
+            gap: 10px;
+        }
+        .header-title { font-size: 13px; font-weight: 600; white-space: nowrap; }
+        .header-version { padding: 1px 7px; background: var(--accent); border-radius: 4px; font-size: 10px; color: #fff; }
+        .url-bar { flex: 1; display: flex; align-items: center; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 4px; overflow: hidden; min-width: 200px; }
+        .url-bar-label { padding: 0 8px; font-size: 12px; color: var(--text-secondary); white-space: nowrap; user-select: none; }
+        .url-bar input { flex: 1; padding: 6px 8px; background: transparent; border: none; color: var(--text-primary); font-family: inherit; font-size: 12px; outline: none; }
+        .url-bar input::placeholder { color: var(--text-secondary); }
+        .url-bar .btn-go { padding: 6px 14px; background: var(--accent); border: none; color: #fff; font-size: 12px; cursor: pointer; font-family: inherit; transition: background .2s; }
+        .url-bar .btn-go:hover { background: var(--accent-hover); }
+        .header-actions { display: flex; gap: 6px; flex-shrink: 0; align-items: center; }
+        .btn { padding: 4px 12px; background: var(--bg-tertiary); border: 1px solid var(--border); color: var(--text-primary); font-size: 12px; cursor: pointer; border-radius: 3px; transition: all .2s; font-family: inherit; white-space: nowrap; }
+        .btn:hover { background: var(--accent); border-color: var(--accent); }
+        .btn-primary { background: var(--accent); border-color: var(--accent); }
+        .btn-primary:hover { background: var(--accent-hover); }
+        .btn-danger { background: var(--error); border-color: var(--error); }
+        .btn-danger:hover { opacity: .8; }
+        .btn-sm { padding: 2px 8px; font-size: 11px; }
+        .main-content { margin-top: 40px; height: calc(100vh - 40px); display: flex; overflow: hidden; }
+        .left-panel { width: 280px; min-width: 200px; background: var(--bg-primary); border-right: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; }
+        .panel-header { padding: 6px 12px; background: var(--bg-secondary); border-bottom: 1px solid var(--border); font-size: 11px; text-transform: uppercase; color: var(--text-secondary); letter-spacing: .5px; display: flex; align-items: center; justify-content: space-between; }
+        .dom-tree { flex: 1; overflow: auto; padding: 6px; }
+        .dom-node { margin-left: 14px; }
+        .dom-node-content { display: flex; align-items: center; padding: 1px 4px; cursor: pointer; border-radius: 3px; font-size: 12px; line-height: 1.7; white-space: nowrap; }
+        .dom-node-content:hover { background: var(--bg-tertiary); }
+        .dom-node-content.selected { background: var(--accent); }
+        .dom-toggle { width: 12px; height: 12px; margin-right: 3px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-size: 9px; color: var(--text-secondary); flex-shrink: 0; }
+        .dom-toggle:hover { color: var(--text-primary); }
+        .dom-toggle.no-children { visibility: hidden; }
+        .dom-tag { color: var(--tag); }
+        .dom-attr-name { color: var(--attr); }
+        .dom-attr-value { color: var(--value); }
+        .dom-text { color: var(--text-secondary); font-style: italic; }
+        .dom-children { display: block; }
+        .dom-children.collapsed { display: none; }
+        .center-panel { flex: 1; min-width: 300px; display: flex; flex-direction: column; background: var(--bg-primary); border-right: 1px solid var(--border); }
+        .preview-container { flex: 1; position: relative; overflow: hidden; }
+        .preview-container iframe { width: 100%; height: 100%; border: none; background: #fff; }
+        .preview-placeholder { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-secondary); gap: 12px; }
+        .preview-placeholder-icon { font-size: 48px; opacity: .4; }
+        .preview-placeholder-text { font-size: 13px; }
+        .loading-overlay { position: absolute; inset: 0; background: rgba(30,30,30,.85); display: flex; align-items: center; justify-content: center; z-index: 10; }
+        .spinner { width: 32px; height: 32px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .right-panel { width: 360px; min-width: 260px; display: flex; flex-direction: column; background: var(--bg-secondary); flex-shrink: 0; }
+        .element-path { padding: 6px 12px; background: var(--bg-tertiary); border-bottom: 1px solid var(--border); font-size: 11px; color: var(--text-secondary); word-break: break-all; min-height: 28px; }
+        .tabs { display: flex; background: var(--bg-tertiary); border-bottom: 1px solid var(--border); }
+        .tab { padding: 6px 14px; font-size: 12px; cursor: pointer; border-bottom: 2px solid transparent; transition: all .2s; }
+        .tab:hover { background: var(--bg-secondary); }
+        .tab.active { border-bottom-color: var(--accent); background: var(--bg-secondary); }
+        .tab-content { display: none; flex: 1; overflow: auto; padding: 12px; }
+        .tab-content.active { display: flex; flex-direction: column; }
+        .section { margin-bottom: 16px; }
+        .section-title { font-size: 10px; text-transform: uppercase; color: var(--text-secondary); margin-bottom: 6px; letter-spacing: .5px; }
+        .attr-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        .attr-table th, .attr-table td { padding: 4px 6px; text-align: left; border-bottom: 1px solid var(--border); }
+        .attr-table th { background: var(--bg-tertiary); color: var(--text-secondary); font-weight: normal; }
+        .attr-table input { width: 100%; padding: 3px 5px; background: var(--bg-primary); border: 1px solid var(--border); color: var(--text-primary); font-family: inherit; font-size: 12px; }
+        .attr-table input:focus { outline: none; border-color: var(--accent); }
+        .style-editor, .html-editor { font-family: inherit; width: 100%; min-height: 160px; padding: 10px; background: var(--bg-primary); border: 1px solid var(--border); color: var(--text-primary); font-size: 12px; line-height: 1.6; resize: vertical; }
+        .html-editor { min-height: 240px; white-space: pre; overflow-wrap: normal; overflow-x: auto; }
+        .style-editor:focus, .html-editor:focus { outline: none; border-color: var(--accent); }
+        .computed-styles { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; font-size: 11px; }
+        .computed-style-item { display: flex; justify-content: space-between; padding: 3px 6px; background: var(--bg-primary); border-radius: 2px; }
+        .computed-style-property { color: var(--attr); }
+        .computed-style-value { color: var(--value); text-align: right; max-width: 60%; overflow: hidden; text-overflow: ellipsis; }
+        .action-group { display: flex; gap: 6px; margin-top: 10px; }
+        .add-attr-row { display: flex; gap: 6px; margin-top: 6px; }
+        .add-attr-row input { flex: 1; padding: 3px 6px; background: var(--bg-primary); border: 1px solid var(--border); color: var(--text-primary); font-family: inherit; font-size: 12px; }
+        .empty-state { text-align: center; padding: 40px 20px; color: var(--text-secondary); flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .empty-state-icon { font-size: 36px; margin-bottom: 10px; opacity: .5; }
+        .highlight-box { position: absolute; pointer-events: none; border: 2px solid var(--accent); background: rgba(0,122,204,.12); z-index: 20; display: none; transition: top .05s, left .05s, width .05s, height .05s; }
+        .status-bar { position: fixed; bottom: 0; left: 0; right: 0; height: 22px; background: var(--accent); display: flex; align-items: center; padding: 0 12px; font-size: 11px; color: #fff; z-index: 1000; gap: 16px; }
+        .status-bar .status-item { display: flex; align-items: center; gap: 4px; }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); }
+        .status-dot.error { background: var(--error); }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: var(--bg-primary); }
+        ::-webkit-scrollbar-thumb { background: var(--bg-tertiary); }
+        ::-webkit-scrollbar-thumb:hover { background: var(--border); }
+        @media (max-width: 900px) { .center-panel { display: none; } .right-panel { width: 300px; } }
+        @media (max-width: 640px) { .left-panel { width: 100%; } .right-panel { display: none; } }
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 2000; display: none; align-items: center; justify-content: center; }
+        .modal-overlay.active { display: flex; }
+        .modal { background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 6px; width: 680px; max-width: 90vw; max-height: 80vh; display: flex; flex-direction: column; box-shadow: 0 8px 32px rgba(0,0,0,.5); }
+        .modal-header { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+        .modal-header h3 { font-size: 14px; font-weight: 600; }
+        .modal-close { background: none; border: none; color: var(--text-secondary); font-size: 18px; cursor: pointer; padding: 0 4px; line-height: 1; }
+        .modal-close:hover { color: var(--text-primary); }
+        .modal-body { padding: 16px; flex: 1; overflow: auto; }
+        .modal-body textarea { width: 100%; height: 300px; padding: 10px; background: var(--bg-primary); border: 1px solid var(--border); color: var(--text-primary); font-family: inherit; font-size: 12px; line-height: 1.6; resize: vertical; }
+        .modal-body textarea:focus { outline: none; border-color: var(--accent); }
+        .modal-footer { padding: 10px 16px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; }
+        .error-detail { margin-top: 8px; padding: 8px 12px; background: rgba(244,71,71,.1); border: 1px solid rgba(244,71,71,.3); border-radius: 4px; font-size: 11px; color: var(--error); max-height: 60px; overflow: auto; word-break: break-all; }
+    </style>
+</head>
+<body>
+<div class="header">
+    <span class="header-title">DOM Debugger</span>
+    <span class="header-version">Android</span>
+    <div class="url-bar">
+        <span class="url-bar-label">URL</span>
+        <input type="text" id="urlInput" placeholder="输入网址加载目标页面" spellcheck="false">
+        <button class="btn-go" onclick="loadURL()">加载</button>
+    </div>
+    <div class="header-actions">
+        <button class="btn btn-sm" onclick="showPasteModal()">粘贴HTML</button>
+        <button class="btn btn-sm" onclick="refreshDOM()">刷新树</button>
+        <button class="btn btn-sm btn-primary" id="btnInspect" onclick="toggleInspect()">检查元素</button>
+    </div>
+</div>
+<div class="modal-overlay" id="pasteModal">
+    <div class="modal" style="width:720px;max-width:95vw">
+        <div class="modal-header">
+            <h3>粘贴 HTML 源码</h3>
+            <button class="modal-close" onclick="hidePasteModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div style="background:var(--bg-tertiary);padding:10px 12px;border-radius:4px;margin-bottom:12px;font-size:11px;line-height:1.8;color:var(--text-secondary)">
+                <strong style="color:var(--success)">Android 原生应用无 CORS 限制</strong> — 直接输入网址即可加载，无需代理。<br>
+                如果网址加载失败，可以手动粘贴 HTML 源码作为备选方案。
+            </div>
+            <textarea id="pasteHtmlInput" placeholder="将 HTML 源码粘贴到这里..."></textarea>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-sm" onclick="hidePasteModal()">取消</button>
+            <button class="btn btn-sm" onclick="document.getElementById('pasteHtmlInput').value=''">清空</button>
+            <button class="btn btn-sm btn-primary" onclick="loadPastedHTML()">加载到预览</button>
+        </div>
+    </div>
+</div>
+<div class="main-content">
+    <div class="left-panel">
+        <div class="panel-header"><span>DOM 树</span><span id="nodeCount" style="font-size:10px;color:var(--text-secondary)"></span></div>
+        <div class="dom-tree" id="domTree"></div>
+    </div>
+    <div class="center-panel">
+        <div class="panel-header"><span>页面预览</span><span id="previewUrl" style="font-size:10px;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%"></span></div>
+        <div class="preview-container" id="previewContainer">
+            <div class="preview-placeholder" id="previewPlaceholder"><div class="preview-placeholder-icon">&#128269;</div><div class="preview-placeholder-text">输入网址并点击「加载」</div></div>
+            <div class="loading-overlay" id="loadingOverlay" style="display:none"><div class="spinner"></div></div>
+            <div class="highlight-box" id="highlightBox"></div>
+            <iframe id="previewFrame" style="display:none" sandbox="allow-scripts allow-same-origin"></iframe>
+        </div>
+    </div>
+    <div class="right-panel">
+        <div class="element-path" id="elementPath">选择元素查看详情</div>
+        <div class="tabs">
+            <div class="tab active" data-tab="properties" onclick="switchTab(this)">属性</div>
+            <div class="tab" data-tab="styles" onclick="switchTab(this)">样式</div>
+            <div class="tab" data-tab="html" onclick="switchTab(this)">HTML</div>
+        </div>
+        <div class="tab-content active" id="tab-properties">
+            <div class="empty-state" id="properties-empty"><div class="empty-state-icon">&#128203;</div><div>选择元素查看属性</div></div>
+            <div id="properties-content" style="display:none">
+                <div class="section"><div class="section-title">标签信息</div><table class="attr-table"><tr><th>属性</th><th>值</th></tr><tr><td>tagName</td><td id="prop-tagName">-</td></tr><tr><td>id</td><td id="prop-id">-</td></tr><tr><td>className</td><td id="prop-className">-</td></tr></table></div>
+                <div class="section"><div class="section-title">尺寸</div><table class="attr-table"><tr><th>属性</th><th>值</th></tr><tr><td>offsetWidth</td><td id="prop-offsetWidth">-</td></tr><tr><td>offsetHeight</td><td id="prop-offsetHeight">-</td></tr><tr><td>clientWidth</td><td id="prop-clientWidth">-</td></tr><tr><td>clientHeight</td><td id="prop-clientHeight">-</td></tr></table></div>
+                <div class="section"><div class="section-title">所有属性</div><table class="attr-table" id="custom-attrs"><tr><th>名称</th><th>值</th><th style="width:50px">操作</th></tr></table><div class="add-attr-row"><input type="text" id="new-attr-name" placeholder="属性名"><input type="text" id="new-attr-value" placeholder="属性值"><button class="btn btn-sm" onclick="addAttribute()">添加</button></div></div>
+                <div class="action-group"><button class="btn btn-sm btn-danger" onclick="deleteElement()">删除元素</button><button class="btn btn-sm" onclick="cloneElement()">克隆元素</button></div>
+            </div>
+        </div>
+        <div class="tab-content" id="tab-styles">
+            <div class="empty-state" id="styles-empty"><div class="empty-state-icon">&#127912;</div><div>选择元素查看样式</div></div>
+            <div id="styles-content" style="display:none">
+                <div class="section"><div class="section-title">内联样式</div><textarea class="style-editor" id="inline-style-editor" placeholder="element.style.cssText"></textarea><div class="action-group"><button class="btn btn-sm btn-primary" onclick="applyStyles()">应用样式</button></div></div>
+                <div class="section"><div class="section-title">计算样式</div><div class="computed-styles" id="computed-styles"></div></div>
+            </div>
+        </div>
+        <div class="tab-content" id="tab-html">
+            <div class="empty-state" id="html-empty"><div class="empty-state-icon">&#128221;</div><div>选择元素编辑HTML</div></div>
+            <div id="html-content" style="display:none"><div class="section"><div class="section-title">outerHTML</div><textarea class="html-editor" id="html-editor"></textarea><div class="action-group"><button class="btn btn-sm btn-primary" onclick="applyHTML()">应用更改</button></div></div></div>
+        </div>
+    </div>
+</div>
+<div class="status-bar"><div class="status-item"><div class="status-dot" id="statusDot"></div><span id="statusText">就绪</span></div><div class="status-item" id="statusUrl" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div></div>
+<script>
+let selectedElement = null, isInspecting = false, targetDoc = null, currentMode = 'self';
+const LOCAL_PROXY = '/api/proxy';
+document.addEventListener('DOMContentLoaded', () => { targetDoc = document; refreshDOM(); setupInspectMode(); setStatus('ok', '原生代理已启用'); document.getElementById('urlInput').addEventListener('keydown', e => { if (e.key === 'Enter') loadURL(); }); });
+async function loadURL() {
+    let url = document.getElementById('urlInput').value.trim();
+    if (!url) return;
+    if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+    document.getElementById('urlInput').value = url;
+    setStatus('loading', '正在加载…');
+    showLoading(true);
+    document.getElementById('previewPlaceholder').style.display = 'none';
+    clearErrorDetail();
+    let html = null, errors = [];
+    try {
+        setStatus('loading', '原生代理加载中…');
+        const resp = await fetch(LOCAL_PROXY + '?url=' + encodeURIComponent(url), { signal: AbortSignal.timeout(15) });
+        if (resp.ok) { const data = await resp.json(); if (data.ok && data.content) { html = data.content; setStatus('ok', '已加载 — ' + new URL(url).hostname + ' (' + html.length + ' 字符)'); } else { errors.push(data.error || '返回内容为空'); } } else { errors.push('HTTP ' + resp.status); }
+    } catch (e) { errors.push(e.message || '连接失败'); }
+    if (!html) { showLoading(false); setStatus('error', '加载失败'); showErrorDetail(errors.join('\n')); document.getElementById('previewPlaceholder').style.display = 'flex'; setTimeout(() => showPasteModal(), 300); return; }
+    showLoading(false); renderInIframe(html, url);
+}
+function showPasteModal() { document.getElementById('pasteModal').classList.add('active'); document.getElementById('pasteHtmlInput').focus(); }
+function hidePasteModal() { document.getElementById('pasteModal').classList.remove('active'); }
+function loadPastedHTML() { const html = document.getElementById('pasteHtmlInput').value.trim(); if (!html) { setStatus('error', '请粘贴 HTML 内容'); return; } hidePasteModal(); showLoading(true); document.getElementById('previewPlaceholder').style.display = 'none'; clearErrorDetail(); requestAnimationFrame(() => { showLoading(false); renderInIframe(html, '粘贴的HTML'); }); }
+function renderInIframe(html, urlLabel) { const frame = document.getElementById('previewFrame'); frame.style.display = 'block'; frame.srcdoc = html; frame.onload = () => { try { targetDoc = frame.contentDocument; currentMode = 'iframe'; selectedElement = null; resetPanels(); refreshDOM(); document.getElementById('previewUrl').textContent = urlLabel; document.getElementById('statusUrl').textContent = urlLabel; } catch (e) { setStatus('error', '无法访问 iframe 内容'); } }; }
+function showErrorDetail(msg) { let el = document.getElementById('errorDetail'); if (!el) { el = document.createElement('div'); el.id = 'errorDetail'; el.className = 'error-detail'; document.querySelector('.status-bar').appendChild(el); } el.style.display = 'block'; el.textContent = msg; }
+function clearErrorDetail() { const el = document.getElementById('errorDetail'); if (el) el.style.display = 'none'; }
+function refreshDOM() { const container = document.getElementById('domTree'); container.innerHTML = ''; const root = targetDoc.documentElement; if (!root) return; container.appendChild(buildDOMNode(root, 0)); document.getElementById('nodeCount').textContent = countElements(root) + ' 个元素'; }
+function countElements(el) { let n = 1; for (const c of el.children) n += countElements(c); return n; }
+function buildDOMNode(element, depth) { const wrap = document.createElement('div'); wrap.className = 'dom-node'; if (depth === 0) wrap.style.marginLeft = '0'; const row = document.createElement('div'); row.className = 'dom-node-content'; row._targetElement = element; const toggle = document.createElement('span'); toggle.className = 'dom-toggle'; const kids = element.children; const hasKids = kids && kids.length > 0; if (hasKids) { toggle.textContent = '▼'; toggle.onclick = e => { e.stopPropagation(); toggleKids(wrap, toggle); }; } else { toggle.classList.add('no-children'); } row.appendChild(toggle); if (element.nodeType === 1) { const tag = document.createElement('span'); tag.className = 'dom-tag'; tag.textContent = element.tagName.toLowerCase(); row.appendChild(tag); if (element.id) row.appendChild(makeSpan('<span class="dom-attr-name">#</span><span class="dom-attr-value">' + esc(element.id) + '</span>')); if (typeof element.className === 'string' && element.className.trim()) { const cls = element.className.trim().split(/\s+/).slice(0, 2); row.appendChild(makeSpan('<span class="dom-attr-name">.</span><span class="dom-attr-value">' + cls.join('.') + '</span>')); } ['src','href','name','type','value','alt','title'].forEach(a => { if (element.hasAttribute(a)) row.appendChild(makeSpan(' <span class="dom-attr-name">' + a + '</span>=<span class="dom-attr-value">"' + esc(element.getAttribute(a)) + '"</span>')); }); if (!hasKids) { const txt = Array.from(element.childNodes).filter(n => n.nodeType === 3).map(n => n.textContent.trim()).join(' ').substring(0, 28); if (txt) { const s = document.createElement('span'); s.className = 'dom-text'; s.textContent = ' "' + txt + (txt.length >= 28 ? '…' : '') + '"'; row.appendChild(s); } } } row.onclick = () => selectElement(element, row); wrap.appendChild(row); if (hasKids) { const childBox = document.createElement('div'); childBox.className = 'dom-children'; for (const c of kids) childBox.appendChild(buildDOMNode(c, depth + 1)); wrap.appendChild(childBox); } return wrap; }
+function makeSpan(html) { const s = document.createElement('span'); s.innerHTML = html; return s; }
+function toggleKids(wrap, toggle) { const box = wrap.querySelector('.dom-children'); if (!box) return; box.classList.toggle('collapsed'); toggle.textContent = box.classList.contains('collapsed') ? '▶' : '▼'; }
+function selectElement(element, row) { document.querySelectorAll('.dom-node-content.selected').forEach(el => el.classList.remove('selected')); row.classList.add('selected'); selectedElement = element; updateElementPath(element); updatePropertiesPanel(element); updateStylesPanel(element); updateHTMLPanel(element); highlightElement(element); }
+function toggleInspect() { isInspecting = !isInspecting; const btn = document.getElementById('btnInspect'); if (isInspecting) { btn.textContent = '取消检查'; btn.style.background = 'var(--warning)'; btn.style.borderColor = 'var(--warning)'; } else { btn.textContent = '检查元素'; btn.style.background = ''; btn.style.borderColor = ''; hideHighlight(); } }
+function setupInspectMode() { document.addEventListener('mousemove', onGlobalMouseMove, true); document.addEventListener('click', onGlobalClick, true); }
+function onGlobalMouseMove(e) { if (!isInspecting || currentMode !== 'iframe') return; const frame = document.getElementById('previewFrame'); if (!frame.contentDocument) return; const el = frame.contentDocument.elementFromPoint(e.clientX - frame.getBoundingClientRect().left, e.clientY - frame.getBoundingClientRect().top); if (el) highlightElement(el); }
+function onGlobalClick(e) { if (!isInspecting || currentMode !== 'iframe') return; if (e.target.closest('.header') || e.target.closest('.left-panel') || e.target.closest('.right-panel') || e.target.closest('.status-bar')) return; const frame = document.getElementById('previewFrame'); if (!frame.contentDocument) return; const el = frame.contentDocument.elementFromPoint(e.clientX - frame.getBoundingClientRect().left, e.clientY - frame.getBoundingClientRect().top); if (el) { e.preventDefault(); e.stopPropagation(); findAndSelectInTree(el); toggleInspect(); } }
+function findAndSelectInTree(targetEl) { const items = document.querySelectorAll('.dom-node-content'); for (const item of items) { if (item._targetElement === targetEl) { item.click(); item.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; } } }
+function highlightElement(element) { if (!element) return; const box = document.getElementById('highlightBox'); if (currentMode === 'iframe') { const frame = document.getElementById('previewFrame'); const frameRect = frame.getBoundingClientRect(); try { const rect = element.getBoundingClientRect(); box.style.display = 'block'; box.style.top = (rect.top + frameRect.top) + 'px'; box.style.left = (rect.left + frameRect.left) + 'px'; box.style.width = rect.width + 'px'; box.style.height = rect.height + 'px'; } catch (_) { box.style.display = 'none'; } } else { try { const rect = element.getBoundingClientRect(); box.style.display = 'block'; box.style.position = 'fixed'; box.style.top = rect.top + 'px'; box.style.left = rect.left + 'px'; box.style.width = rect.width + 'px'; box.style.height = rect.height + 'px'; } catch (_) { box.style.display = 'none'; } } }
+function hideHighlight() { document.getElementById('highlightBox').style.display = 'none'; }
+function updateElementPath(element) { document.getElementById('elementPath').textContent = getElementPath(element); }
+function getElementPath(element) { const path = []; let cur = element; const stop = currentMode === 'iframe' ? (document.getElementById('previewFrame').contentDocument || {}).body : document.body; while (cur && cur !== stop) { let s = cur.tagName.toLowerCase(); if (cur.id) s += '#' + cur.id; else if (typeof cur.className === 'string' && cur.className.trim()) { const c = cur.className.trim().split(/\s+/).slice(0, 2).join('.'); if (c) s += '.' + c; } path.unshift(s); cur = cur.parentElement; } return path.join(' > '); }
+function updatePropertiesPanel(el) { show('properties'); document.getElementById('prop-tagName').textContent = el.tagName; document.getElementById('prop-id').textContent = el.id || '-'; document.getElementById('prop-className').textContent = (typeof el.className === 'string' ? el.className : '-') || '-'; document.getElementById('prop-offsetWidth').textContent = (el.offsetWidth || 0) + 'px'; document.getElementById('prop-offsetHeight').textContent = (el.offsetHeight || 0) + 'px'; document.getElementById('prop-clientWidth').textContent = (el.clientWidth || 0) + 'px'; document.getElementById('prop-clientHeight').textContent = (el.clientHeight || 0) + 'px'; updateCustomAttributes(el); }
+function updateCustomAttributes(el) { const table = document.getElementById('custom-attrs'); while (table.rows.length > 1) table.deleteRow(1); Array.from(el.attributes).forEach(attr => { const row = table.insertRow(); row.innerHTML = '<td>' + esc(attr.name) + '</td><td><input type="text" value="' + esc(attr.value) + '" data-attr="' + esc(attr.name) + '" class="attr-input"></td><td><button class="btn btn-sm btn-danger" data-del="' + esc(attr.name) + '">删除</button></td>'; row.querySelector('.attr-input').onchange = function() { updateAttribute(this.dataset.attr, this.value); }; row.querySelector('[data-del]').onclick = function() { removeAttribute(this.dataset.del); }; }); }
+function updateStylesPanel(el) { show('styles'); document.getElementById('inline-style-editor').value = el.style.cssText; const box = document.getElementById('computed-styles'); box.innerHTML = ''; const win = currentMode === 'iframe' ? document.getElementById('previewFrame').contentWindow : window; if (!win) return; const computed = win.getComputedStyle(el); ['display','position','width','height','top','right','bottom','left','margin','padding','border','background','background-color','color','font-size','font-weight','flex','grid','opacity','visibility','z-index','overflow','text-align','line-height','box-shadow','border-radius'].forEach(p => { const v = computed.getPropertyValue(p); if (v) { const d = document.createElement('div'); d.className = 'computed-style-item'; d.innerHTML = '<span class="computed-style-property">' + p + '</span><span class="computed-style-value">' + v + '</span>'; box.appendChild(d); } }); }
+function updateHTMLPanel(el) { show('html'); document.getElementById('html-editor').value = formatHTML(el.outerHTML); }
+function applyStyles() { if (!selectedElement) return; selectedElement.style.cssText = document.getElementById('inline-style-editor').value; refreshDOM(); }
+function applyHTML() { if (!selectedElement) return; const html = document.getElementById('html-editor').value; const parent = selectedElement.parentElement; if (!parent) return; const tmp = targetDoc.createElement('div'); tmp.innerHTML = html; const neo = tmp.firstElementChild; if (neo) { parent.replaceChild(neo, selectedElement); selectedElement = neo; refreshDOM(); } }
+function addAttribute() { if (!selectedElement) return; const n = document.getElementById('new-attr-name').value.trim(); const v = document.getElementById('new-attr-value').value; if (!n) return; selectedElement.setAttribute(n, v); document.getElementById('new-attr-name').value = ''; document.getElementById('new-attr-value').value = ''; updateCustomAttributes(selectedElement); refreshDOM(); }
+function updateAttribute(name, value) { if (!selectedElement) return; selectedElement.setAttribute(name, value); refreshDOM(); }
+function removeAttribute(name) { if (!selectedElement) return; selectedElement.removeAttribute(name); updateCustomAttributes(selectedElement); refreshDOM(); }
+function deleteElement() { if (!selectedElement) return; if (!confirm('确定删除此元素？')) return; selectedElement.remove(); selectedElement = null; resetPanels(); refreshDOM(); }
+function cloneElement() { if (!selectedElement) return; const c = selectedElement.cloneNode(true); selectedElement.parentElement.insertBefore(c, selectedElement.nextSibling); refreshDOM(); }
+function switchTab(el) { document.querySelectorAll('.tab').forEach(t => t.classList.remove('active')); document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active')); el.classList.add('active'); document.getElementById('tab-' + el.dataset.tab).classList.add('active'); }
+function show(name) { document.getElementById(name + '-empty').style.display = 'none'; document.getElementById(name + '-content').style.display = 'block'; }
+function resetPanels() { ['properties','styles','html'].forEach(n => { document.getElementById(n + '-empty').style.display = 'flex'; document.getElementById(n + '-content').style.display = 'none'; }); document.getElementById('elementPath').textContent = '选择元素查看详情'; hideHighlight(); }
+function formatHTML(html) { let fmt = '', indent = 0; const tab = '  '; html.split(/(<[^>]+>)/g).filter(s => s.trim()).forEach(n => { if (/^<\/\w/.test(n)) indent--; fmt += tab.repeat(Math.max(0, indent)) + n + '\n'; if (/<\w[^>]*[^/]>/.test(n) && !/^<\/\w/.test(n) && !/<\w[^>]*\/>/.test(n)) indent++; }); return fmt.trim(); }
+function esc(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
+function showLoading(v) { document.getElementById('loadingOverlay').style.display = v ? 'flex' : 'none'; }
+function setStatus(type, text) { const dot = document.getElementById('statusDot'); dot.className = 'status-dot' + (type === 'error' ? ' error' : type === 'loading' ? '' : ''); document.getElementById('statusText').textContent = text; }
+</script>
+</body>
+</html>

@@ -14,4 +14,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "DOM Debugger"
-include ':app'
+include(":app")

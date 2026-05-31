@@ -2,6 +2,7 @@ package com.domdebugger;
 
 import android.annotation.SuppressLint;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.Window;
 import android.view.WindowManager;
 import android.webkit.WebResourceRequest;
@@ -13,6 +14,8 @@ import android.webkit.WebViewClient;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.webkit.WebViewAssetLoader;
 
+import org.json.JSONObject;
+
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 
@@ -20,6 +23,8 @@ import java.nio.charset.StandardCharsets;
  * DOM Debugger Android - WebView + OkHttp, no CORS
  */
 public class MainActivity extends AppCompatActivity {
+
+    private static final String TAG = "DOMDebugger";
 
     private WebView webView;
     private WebViewAssetLoader assetLoader;
@@ -30,7 +35,6 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // 全屏沉浸式
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         getWindow().setFlags(
             WindowManager.LayoutParams.FLAG_FULLSCREEN,
@@ -61,11 +65,15 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
                 String url = request.getUrl().toString();
-                if (url.contains("/api/proxy")) {
-                    return handleProxyRequest(request);
-                }
-                if (url.contains("/api/status")) {
-                    return handleStatusRequest();
+                try {
+                    if (url.contains("/api/proxy")) {
+                        return handleProxyRequest(request);
+                    }
+                    if (url.contains("/api/status")) {
+                        return handleStatusRequest();
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "shouldInterceptRequest error", e);
                 }
                 return assetLoader.shouldInterceptRequest(request.getUrl());
             }
@@ -77,35 +85,66 @@ public class MainActivity extends AppCompatActivity {
     private WebResourceResponse handleProxyRequest(WebResourceRequest request) {
         String targetUrl = request.getUrl().getQueryParameter("url");
         if (targetUrl == null || targetUrl.isEmpty()) {
-            return jsonResp(400, "{\"ok\":false,\"error\":\"missing url param\"}");
+            return jsonResp(400, errorJson("missing url param"));
         }
         if (!targetUrl.startsWith("http://") && !targetUrl.startsWith("https://")) {
-            return jsonResp(400, "{\"ok\":false,\"error\":\"url must start with http/https\"}");
+            return jsonResp(400, errorJson("url must start with http:// or https://"));
         }
+
+        Log.d(TAG, "Proxying: " + targetUrl);
+
         try {
             ProxyService.ProxyResult r = proxyService.fetch(targetUrl);
             if (r.ok) {
-                String json = "{\"ok\":true,\"url\":\"" + esc(r.url) + "\",\"contentType\":\"" + esc(r.contentType) + "\",\"content\":\"" + esc(r.content) + "\",\"length\":" + r.length + "}";
-                return jsonResp(200, json);
+                JSONObject json = new JSONObject();
+                json.put("ok", true);
+                json.put("url", r.url);
+                json.put("contentType", r.contentType);
+                json.put("content", r.content);
+                json.put("length", r.length);
+                Log.d(TAG, "Proxy success: " + r.length + " chars");
+                return jsonResp(200, json.toString());
             } else {
-                return jsonResp(502, "{\"ok\":false,\"error\":\"" + esc(r.error) + "\"}");
+                Log.e(TAG, "Proxy failed: " + r.error);
+                return jsonResp(502, errorJson(r.error));
             }
         } catch (Exception e) {
-            return jsonResp(500, "{\"ok\":false,\"error\":\"" + esc(e.getMessage()) + "\"}");
+            Log.e(TAG, "Proxy exception", e);
+            return jsonResp(500, errorJson(e.getMessage()));
         }
     }
 
     private WebResourceResponse handleStatusRequest() {
-        return jsonResp(200, "{\"status\":\"ok\",\"message\":\"Android native proxy active\"}");
+        try {
+            JSONObject json = new JSONObject();
+            json.put("status", "ok");
+            json.put("message", "Android native proxy active");
+            return jsonResp(200, json.toString());
+        } catch (Exception e) {
+            return jsonResp(200, "{\"status\":\"ok\"}");
+        }
+    }
+
+    private String errorJson(String msg) {
+        try {
+            JSONObject json = new JSONObject();
+            json.put("ok", false);
+            json.put("error", msg != null ? msg : "unknown error");
+            return json.toString();
+        } catch (Exception e) {
+            return "{\"ok\":false,\"error\":\"unknown\"}";
+        }
     }
 
     private WebResourceResponse jsonResp(int code, String json) {
-        return new WebResourceResponse("application/json", "utf-8", code, "OK", null, new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8)));
-    }
-
-    private String esc(String s) {
-        if (s == null) return "";
-        return s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t");
+        return new WebResourceResponse(
+            "application/json",
+            "utf-8",
+            code,
+            code == 200 ? "OK" : "Error",
+            null,
+            new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8))
+        );
     }
 
     @Override

@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- 背景圆 -->
+    <path
+        android:fillColor="#2d2d2d"
+        android:pathData="M54,54m-40,0a40,40 0,1 1,80 0a40,40 0,1 1,-80 0"/>
+    <!-- DOM 树图标 -->
+    <path
+        android:fillColor="#4fc3f7"
+        android:pathData="M34,30h10v10h-10z"/>
+    <path
+        android:fillColor="#4fc3f7"
+        android:pathData="M54,30h10v10h-10z"/>
+    <path
+        android:fillColor="#4fc3f7"
+        android:pathData="M74,30h10v10h-10z"/>
+    <path
+        android:fillColor="#81c784"
+        android:pathData="M44,50h10v10h-10z"/>
+    <path
+        android:fillColor="#81c784"
+        android:pathData="M64,50h10v10h-10z"/>
+    <path
+        android:fillColor="#ffb74d"
+        android:pathData="M54,70h10v10h-10z"/>
+    <!-- 连接线 -->
+    <path
+        android:strokeColor="#888888"
+        android:strokeWidth="2"
+        android:pathData="M39,40L49,50"/>
+    <path
+        android:strokeColor="#888888"
+        android:strokeWidth="2"
+        android:pathData="M59,40L49,50"/>
+    <path
+        android:strokeColor="#888888"
+        android:strokeWidth="2"
+        android:pathData="M59,40L69,50"/>
+    <path
+        android:strokeColor="#888888"
+        android:strokeWidth="2"
+        android:pathData="M79,40L69,50"/>
+    <path
+        android:strokeColor="#888888"
+        android:strokeWidth="2"
+        android:pathData="M49,60L59,70"/>
+    <path
+        android:strokeColor="#888888"
+        android:strokeWidth="2"
+        android:pathData="M69,60L59,70"/>
+</vector>
